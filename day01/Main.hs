@@ -1,3 +1,5 @@
+{-# LANGUAGE TupleSections #-}
+
 module Main where
 
 import Data.Maybe (listToMaybe, mapMaybe)
@@ -25,25 +27,6 @@ Of course, your expense report is much larger. Find the two entries that sum to
 2020; what do you get if you multiply them together?
 -}
 
-main :: IO ()
-main = do
-  contents <- TI.readFile "input.txt"
-  let numbers = map parseLine (T.lines contents)
-  let numberSet = Set.fromList numbers
-  let desired = 2020
-  print $
-    mapMaybe
-      ( \current ->
-          let other = desired - current
-           in if Set.member other numberSet
-                then Just $ current * other
-                else Nothing
-      )
-      numbers
-
-parseLine :: T.Text -> Integer
-parseLine = read . T.unpack
-
 {-
 The Elves in accounting are thankful for your help; one of them even offers
 you a starfish coin they had left over from a past vacation. They offer you a
@@ -57,25 +40,61 @@ In your expense report, what is the product of the three entries that sum to
 2020?
 -}
 
-mainTwo :: IO ()
-mainTwo = do
+main :: IO ()
+main = do
   contents <- TI.readFile "input.txt"
+
   let numbers = map parseLine (T.lines contents)
   let numberSet = Set.fromList numbers
   let desired = 2020
+
   print $
     mapMaybe
-      ( \first ->
-          let newSet =
-                Set.delete first numberSet
-           in listToMaybe $
-                mapMaybe
-                  ( \second ->
-                      let other = desired - first - second
-                       in if Set.member other newSet
-                            then Just $ first * second * other
-                            else Nothing
-                  )
-                  (Set.toList newSet)
+      ( \current ->
+          let other = desired - current
+           in if Set.member other numberSet
+                then Just $ current * other
+                else Nothing
       )
       numbers
+
+  print $
+    mapMaybe
+      ( \(first, second) ->
+          let other = desired - first - second
+           in if Set.member other numberSet
+                then Just $ first * second * other
+                else Nothing
+      )
+      (orderedTuples numbers [])
+
+parseLine :: T.Text -> Integer
+parseLine = read . T.unpack
+
+orderedTuples :: [a] -> [(a, a)] -> [(a, a)]
+orderedTuples [] acc = acc
+orderedTuples (first : rest) acc =
+  orderedTuples rest (acc <> map (first,) rest)
+
+-- mainTwo :: IO ()
+-- mainTwo = do
+--   contents <- TI.readFile "input.txt"
+--   let numbers = map parseLine (T.lines contents)
+--   let numberSet = Set.fromList numbers
+--   let desired = 2020
+--   print $
+--     mapMaybe
+--       ( \first ->
+--           let newSet =
+--                 Set.delete first numberSet
+--            in listToMaybe $
+--                 mapMaybe
+--                   ( \second ->
+--                       let other = desired - first - second
+--                        in if Set.member other newSet
+--                             then Just $ first * second * other
+--                             else Nothing
+--                   )
+--                   (Set.toList newSet)
+--       )
+--       numbers
