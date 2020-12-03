@@ -6,6 +6,8 @@ module Main where
 import Data.Maybe (mapMaybe)
 import qualified Data.Text as T
 import qualified Data.Text.IO as TI
+import Data.Vector (Vector, (!?))
+import qualified Data.Vector
 
 {-
 With the toboggan login problems resolved, you set off toward the airport.
@@ -109,16 +111,17 @@ data Token
   = Empty
   | Tree
 
-parseLine :: T.Text -> [Token]
+parseLine :: T.Text -> Vector Token
 parseLine line =
-  map
-    ( \case
-        '#' ->
-          Tree
-        _ ->
-          Empty
-    )
-    (T.unpack line)
+  Data.Vector.fromList $
+    map
+      ( \case
+          '#' ->
+            Tree
+          _ ->
+            Empty
+      )
+      (T.unpack line)
 
 {- Imagine we have a list [1, 2, 3, 4, 5]:
 
@@ -133,16 +136,16 @@ takeOneEvery interval collection =
     (first : rest) ->
       first : takeOneEvery interval (drop (interval - 1) rest)
 
-findTreesForPattern :: [[Token]] -> (Int, Int) -> Int
+findTreesForPattern :: [Vector Token] -> (Int, Int) -> Int
 findTreesForPattern rows (rightStep, downStep) =
   let numCols = length (head rows)
    in snd $
         foldl
           ( \(index, acc) row ->
               ( mod (index + rightStep) numCols,
-                case row !! index of
-                  Tree -> acc + 1
-                  Empty -> acc
+                case row !? index of
+                  Just Tree -> acc + 1
+                  _ -> acc
               )
           )
           (0, 0)
