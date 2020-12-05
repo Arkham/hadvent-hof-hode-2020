@@ -2,7 +2,7 @@ let
   sources = import ./nix/sources.nix;
   nixpkgs = import sources.nixpkgs { };
   niv = import sources.niv { };
-  haskellDeps = ps: with ps; [ base vector ];
+  haskellDeps = ps: with ps; [ base vector unordered-containers ];
   ghc = nixpkgs.haskellPackages.ghcWithPackages haskellDeps;
 in with nixpkgs;
 stdenv.mkDerivation {
