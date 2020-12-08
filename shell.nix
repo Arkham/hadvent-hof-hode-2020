@@ -2,7 +2,15 @@ let
   sources = import ./nix/sources.nix;
   nixpkgs = import sources.nixpkgs { };
   niv = import sources.niv { };
-  haskellDeps = ps: with ps; [ base vector unordered-containers parsec ];
+  haskellDeps = ps:
+    with ps; [
+      base
+      containers
+      graphite
+      parsec
+      unordered-containers
+      vector
+    ];
   ghc = nixpkgs.haskellPackages.ghcWithPackages haskellDeps;
 in with nixpkgs;
 stdenv.mkDerivation {
