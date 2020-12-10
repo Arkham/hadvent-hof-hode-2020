@@ -10,6 +10,7 @@ let
       parsec
       unordered-containers
       vector
+      split
     ];
   ghc = nixpkgs.haskellPackages.ghcWithPackages haskellDeps;
 in with nixpkgs;
