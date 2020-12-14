@@ -5,10 +5,8 @@
 module Main where
 
 import Data.Either (rights)
-import Data.Maybe (mapMaybe)
 import qualified Data.Text as T
 import qualified Data.Text.IO as TI
-import Debug.Trace
 import qualified Text.Parsec as P
 import Text.Parsec.Text (Parser)
 
