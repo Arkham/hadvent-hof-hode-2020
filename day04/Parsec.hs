@@ -7,7 +7,6 @@ import Data.Either (rights)
 import qualified Data.Text as T
 import qualified Data.Text.IO as TI
 import qualified Text.Parsec as P
-import qualified Text.Parsec.Combinator as P
 import Text.Parsec.Perm (permute, (<$$>), (<|?>), (<||>))
 import Text.Parsec.Text (Parser)
 
@@ -58,9 +57,9 @@ data Passport = Passport
     issueYear :: Int,
     expirationYear :: Int,
     height :: Height,
-    hairColor :: String,
-    eyeColor :: String,
-    passportId :: String,
+    hairColor :: T.Text,
+    eyeColor :: T.Text,
+    passportId :: T.Text,
     countryId :: Maybe Int
   }
   deriving (Eq, Show)
@@ -134,34 +133,36 @@ heightParser = do
       guard (value >= 59 && value <= 76)
   return result
 
-hairColorParser :: Parser String
+hairColorParser :: Parser T.Text
 hairColorParser = do
   P.string "hcl"
   P.char ':'
   P.char '#'
-  P.count 6 (P.oneOf "0123456789abcdef")
+  T.pack <$> P.count 6 (P.oneOf "0123456789abcdef")
 
-eyeColorParser :: Parser String
+eyeColorParser :: Parser T.Text
 eyeColorParser = do
   P.string "ecl"
   P.char ':'
-  P.choice $
-    map
-      (P.try . P.string)
-      [ "amb",
-        "blu",
-        "brn",
-        "gry",
-        "grn",
-        "hzl",
-        "oth"
-      ]
+  T.pack
+    <$> P.choice
+      ( map
+          (P.try . P.string)
+          [ "amb",
+            "blu",
+            "brn",
+            "gry",
+            "grn",
+            "hzl",
+            "oth"
+          ]
+      )
 
-passportIdParser :: Parser String
+passportIdParser :: Parser T.Text
 passportIdParser = do
   P.string "pid"
   P.char ':'
-  P.count 9 P.digit
+  T.pack <$> P.count 9 P.digit
 
 countrIdParser :: Parser Int
 countrIdParser = do

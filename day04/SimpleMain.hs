@@ -1,141 +1,149 @@
-{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Main where
 
-import Data.Char (isDigit, isSpace)
-import qualified Data.HashMap.Strict as HM
-import Data.Hashable
-import Data.Maybe (mapMaybe)
+import Control.Monad (guard)
+import Data.Either (rights)
 import qualified Data.Text as T
 import qualified Data.Text.IO as TI
-import GHC.Generics (Generic)
+import qualified Text.Parsec as P
+import Text.Parsec.Perm (permute, (<$$>), (<|?>), (<||>))
+import Text.Parsec.Text (Parser)
 
 main :: IO ()
 main = do
   contents <- TI.readFile "other-short-input.txt"
-  let entries = map parseEntry (T.splitOn "\n\n" contents)
-  print $ length $ filter isEntryValid entries
+  let parsePassport = P.parse passportParser ""
+  let passports = rights $ map parsePassport (T.splitOn "\n\n" contents)
+  print $ length passports
 
-data Entry = Entry
-  deriving (Show)
+passportParser :: Parser Passport
+passportParser =
+  permute $
+    Passport <$$> byrParser
+      <||> iyrParser
+      <||> P.try eyrParser
+      <||> P.try heightParser
+      <||> P.try hairColorParser
+      <||> P.try eyeColorParser
+      <||> passportIdParser
+      <|?> (Nothing, Just <$> countrIdParser)
 
 data Passport = Passport
   { birthYear :: Int,
     issueYear :: Int,
     expirationYear :: Int,
-    height :: String,
-    hairColor :: String,
-    eyeColor :: String,
-    passportId :: String,
+    height :: Height,
+    hairColor :: T.Text,
+    eyeColor :: T.Text,
+    passportId :: T.Text,
     countryId :: Maybe Int
   }
+  deriving (Eq, Show)
 
-data PassportField
-  = BirthYear
-  | IssueYear
-  | ExpirationYear
-  | Height
-  | HairColor
-  | EyeColor
-  | PassportId
-  | CountryId
-  deriving (Eq, Show, Generic)
+data Height
+  = InCms Int
+  | InInches Int
+  deriving (Eq, Show)
 
-instance Hashable PassportField
+yearParser :: String -> (Int, Int) -> Parser Int
+yearParser value (rangeStart, rangeEnd) = do
+  P.string value
+  P.char ':'
+  value <- P.count 4 P.digit
+  P.spaces
+  let int = read value
+  guard (int >= rangeStart && int <= rangeEnd)
+  return int
 
-type PassportEntry = HM.HashMap PassportField T.Text
+-- byr (Birth Year) - four digits; between 1920 and 2002.
+byrParser :: Parser Int
+byrParser = do
+  yearParser "byr" (1920, 2002)
 
-parseEntry :: T.Text -> PassportEntry
-parseEntry line =
-  HM.fromList $
-    mapMaybe parseField $
-      T.split isSpace line
+-- iyr (Issue Year) - four digits; between 2010 and 2020.
+iyrParser :: Parser Int
+iyrParser = do
+  yearParser "iyr" (2010, 2020)
 
-parseField :: T.Text -> Maybe (PassportField, T.Text)
-parseField value =
-  case T.splitOn ":" value of
-    ["byr", byr] ->
-      Just (BirthYear, byr)
-    ["iyr", iyr] ->
-      Just (IssueYear, iyr)
-    ["eyr", eyr] ->
-      Just (ExpirationYear, eyr)
-    ["hgt", height] ->
-      Just (Height, height)
-    ["hcl", color] ->
-      Just (HairColor, color)
-    ["ecl", color] ->
-      Just (EyeColor, color)
-    ["pid", pid] ->
-      Just (PassportId, pid)
-    ["cid", cid] ->
-      Just (CountryId, cid)
-    _ ->
-      Nothing
+-- eyr (Expiration Year) - four digits; between 2020 and 2030.
+eyrParser :: Parser Int
+eyrParser = do
+  yearParser "eyr" (2020, 2030)
 
-requiredFields :: [PassportField]
-requiredFields =
-  [ BirthYear,
-    IssueYear,
-    ExpirationYear,
-    Height,
-    HairColor,
-    EyeColor,
-    PassportId
-  ]
+-- hgt (Height) - a number followed by either cm or in:
+-- If cm, the number must be between 150 and 193.
+-- If in, the number must be between 59 and 76.
+heightParser :: Parser Height
+heightParser = do
+  P.string "hgt"
+  P.char ':'
+  digits <- P.many1 P.digit
+  let value = read digits
+  result <- unitParser value
+  P.spaces
+  case result of
+    InCms _ ->
+      guard (value >= 150 && value <= 193)
+    InInches _ ->
+      guard (value >= 59 && value <= 76)
+  return result
 
-isEntryValid :: PassportEntry -> Bool
-isEntryValid entry =
-  requiredFieldsPresent && allFieldsValid
-  where
-    requiredFieldsPresent =
-      all
-        (\field -> HM.member field entry)
-        requiredFields
-    allFieldsValid =
-      all
-        isFieldValid
-        (HM.toList entry)
+unitParser :: Int -> Parser Height
+unitParser value =
+  let cmParser = do
+        P.string "cm"
+        return (InCms value)
 
-isFieldValid :: (PassportField, T.Text) -> Bool
-isFieldValid (field, value) =
-  case field of
-    BirthYear ->
-      let v = toInt value
-       in T.length value == 4 && v >= 1920 && v <= 2002
-    IssueYear ->
-      let v = toInt value
-       in T.length value == 4 && v >= 2010 && v <= 2020
-    ExpirationYear ->
-      let v = toInt value
-       in T.length value == 4 && v >= 2020 && v <= 2030
-    Height ->
-      case T.span isDigit value of
-        (num, "cm") ->
-          let n = toInt num
-           in n >= 150 && n <= 193
-        (num, "in") ->
-          let n = toInt num
-           in n >= 59 && n <= 76
-        _ ->
-          False
-    HairColor ->
-      case (T.length value, T.unpack value) of
-        (7, '#' : rest) ->
-          all (`elem` allowedHexChars) rest
-        _ ->
-          False
-    EyeColor ->
-      value
-        `elem` ["amb", "blu", "brn", "gry", "grn", "hzl", "oth"]
-    PassportId ->
-      T.length value == 9 && T.all isDigit value
-    CountryId ->
-      T.all isDigit value
-  where
-    toInt :: T.Text -> Int
-    toInt = read . T.unpack
+      inParser = do
+        P.string "in"
+        return (InInches value)
+   in P.choice [cmParser, inParser]
 
-    allowedHexChars :: [Char]
-    allowedHexChars = ['0' .. '9'] <> ['a' .. 'f']
+-- hcl (Hair Color) - a '#' followed by six chars 0-9 or a-f.
+hairColorParser :: Parser T.Text
+hairColorParser = do
+  P.string "hcl"
+  P.char ':'
+  P.char '#'
+  v <- P.count 6 (P.oneOf "0123456789abcdef")
+  P.spaces
+  return $ T.pack v
+
+-- ecl (Eye Color) - one of: amb blu brn gry grn hzl oth.
+eyeColorParser :: Parser T.Text
+eyeColorParser = do
+  P.string "ecl"
+  P.char ':'
+  v <-
+    P.choice $
+      map
+        (P.try . P.string)
+        [ "amb",
+          "blu",
+          "brn",
+          "gry",
+          "grn",
+          "hzl",
+          "oth"
+        ]
+  P.spaces
+  return $ T.pack v
+
+-- pid (Passport ID) - a nine-digit number.
+passportIdParser :: Parser T.Text
+passportIdParser = do
+  P.string "pid"
+  P.char ':'
+  v <- P.count 9 P.digit
+  P.spaces
+  return $ T.pack v
+
+-- cid (Country ID) - ignored, missing or not.
+countrIdParser :: Parser Int
+countrIdParser = do
+  P.string "cid"
+  P.char ':'
+  value <- P.many1 P.digit
+  P.spaces
+  return $ read value
